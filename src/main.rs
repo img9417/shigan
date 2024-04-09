@@ -224,6 +224,22 @@ impl ShiganConfig {
             println!("Task '{}' not found", task);
         }
     }
+
+    fn log(&mut self, task: &String) {
+        let mut file = Self::open_file();
+        let mut existing_data = String::new();
+        file.read_to_string(&mut existing_data).expect("Failed to read data file");
+
+        let data: Value = if existing_data.is_empty() {
+            json!({ "current": {"task": "", "session": {"started": ""}}, "subjects": [] })
+        } else {
+            serde_json::from_str(&existing_data).expect("Failed to parse JSON data")
+        };
+        
+        data["subjects"].as_array().unwrap().iter().for_each(|subject| {
+            println!("{} {} minutes", subject["task"], subject["durationInMinutes"]);
+        })
+    }
 }
 
 fn main() {
@@ -249,9 +265,6 @@ fn main() {
     }
 
     if let Some(task) = cli.log {
-        match task.as_str() {
-            "all" => println!("log all"),
-            _ => println!("log individual, {}", task)
-        }
+        shigan.log(&task);
     }
 }
