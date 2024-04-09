@@ -26,14 +26,12 @@ struct Args {
 
 struct ShiganConfig {
     current_task: Option<String>,
-    stop: bool,
 }
 
 impl ShiganConfig {
     fn new() -> Self {
         Self {
             current_task: None,
-            stop: false
         }
     }
 
@@ -52,11 +50,34 @@ impl ShiganConfig {
         let shigan_dir = home_dir.join(".shigan");
         let data_file_path = shigan_dir.join("data.json");
         OpenOptions::new() 
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(&data_file_path)
-            .expect("Failed to open data file")
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&data_file_path)
+        .expect("Failed to open data file")
+    }
+
+    fn task_exists(task: &String) -> bool {
+        let mut file = Self::open_file();
+        let mut existing_data = String::new();
+        file.read_to_string(&mut existing_data).expect("Failed to read data file");
+
+        let mut data: Value = if existing_data.is_empty() {
+            json!({ "current": {"task": "", "session": {"started": ""}}, "subjects": [] })
+        } else {
+            serde_json::from_str(&existing_data).expect("Failed to parse JSON data")
+        };
+
+        let subject = data["subjects"]
+            .as_array_mut()
+            .expect("Failed to read as an array")
+            .iter_mut()
+            .find(|s| s["task"].as_str().unwrap_or_default() == task);
+
+        match subject {
+            Some(_) => true,
+            None => false
+        }
     }
 
     fn add_task(&mut self, task: &String) {
@@ -64,6 +85,10 @@ impl ShiganConfig {
         let mut existing_data = String::new();
         file.read_to_string(&mut existing_data).expect("Failed to read data file");
 
+        if Self::task_exists(task) {
+            println!("'{}' task already exists.", task);
+            return;
+        }
         let mut data: Value = if existing_data.is_empty() {
             json!({ "current": {"task": "", "session": {"started": ""}}, "subjects": [] })
         } else {
@@ -85,15 +110,32 @@ impl ShiganConfig {
             .expect("Failed to write to data file");
 
         // println!("Task '{}' added to data file: {:?}", task, data_file_path);
+        Self::task_exists(&task);
     }
 
     fn start_task(&mut self) {
         let mut file = Self::open_file();
         let mut existing_data = String::new();
         file.read_to_string(&mut existing_data).expect("Failed to read data file");
-        let mut data: Value = serde_json::from_str(&existing_data).expect("Failed to parse JSON data");
+        let mut data: Value = if existing_data.is_empty() {
+            json!({ "current": {"task": "", "session": {"started": ""}}, "subjects": [] })
+        } else {
+            serde_json::from_str(&existing_data).expect("Failed to parse JSON data")
+        };
 
         let task = &self.current_task;
+        let current_task = &data["current"]["task"];
+        let current_task = current_task.to_string();
+
+        if !Self::task_exists(&task.clone().unwrap()) {
+            println!("-- Task '{}' does not exist.", task.clone().unwrap());
+            return;
+        }
+        if current_task.len() > 2 {
+            eprintln!("@@ Error - there is an ongoing task: {}", current_task);
+            return;
+        }
+
         data["current"]["task"] = json!(task.clone().unwrap());
         data["current"]["session"]["started"] = json!(Utc::now().to_rfc3339());
 
@@ -115,9 +157,14 @@ impl ShiganConfig {
             data["current"]["session"]["started"].as_str().unwrap_or_default(),
         )
         .unwrap_or_else(|_| Utc::now().into()).into();
+
         let current_session_end = Utc::now();
         let current_session_duration = current_session_end - current_session_start;
         let current_task = data["current"]["task"].to_owned();
+        if data["current"]["task"].to_string().len() <= 2 {
+            eprintln!("@@ Error - there's no ongoing task.");
+            return;
+        }
         let subject = data["subjects"]
             .as_array_mut()
             .expect("Failed to read as an array")
@@ -146,6 +193,37 @@ impl ShiganConfig {
         file.write_all(updated_data.as_bytes())
             .expect("Failed to write to data file");
     }
+
+    fn delete_task(&mut self, task: &String) {
+        let mut file = Self::open_file();
+        let mut existing_data = String::new();
+        file.read_to_string(&mut existing_data).expect("Failed to read data file");
+        let mut data: Value = serde_json::from_str(&existing_data).expect("Failed to parse JSON data");
+
+        let current_task = data["current"]["task"].to_owned();
+        if current_task.as_str() ==  Some(task) {
+            eprintln!("@@ Error - cannot delete an ongoing task.");
+            return;
+        }
+        let index = data["subjects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|subject| subject["task"].as_str().unwrap_or_default() == *task);
+
+        if let Some(position) = index {
+            data["subjects"].as_array_mut().unwrap().remove(position);
+
+            let _ = file.set_len(0);
+            file.rewind().expect("Failed to rewind data file");
+            let updated_data = to_string_pretty(&data).unwrap();
+            file.write_all(updated_data.as_bytes())
+                .expect("Failed to write to data file");
+            println!("Task '{}' deleted", task);
+        } else {
+            println!("Task '{}' not found", task);
+        }
+    }
 }
 
 fn main() {
@@ -154,26 +232,16 @@ fn main() {
     shigan.init();
 
     if let Some(task) = cli.add {
-        match task {
-            _ => {
-                shigan.add_task(&(task.to_lowercase()));
-            }
-        }
+        shigan.add_task(&(task.to_lowercase()));
     }
 
     if let Some(task) = cli.delete {
-        match task {
-            _ => println!("'{task}' deleted"),
-        }
+        shigan.delete_task(&(task.to_lowercase()));
     }
 
     if let Some(task) = cli.start {
-        match task {
-            _ => {
-                shigan.current_task = Some(task.to_lowercase());
-                shigan.start_task();
-            }
-        };
+        shigan.current_task = Some(task.to_lowercase());
+        shigan.start_task();
     }
 
     if cli.stop {
