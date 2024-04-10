@@ -236,9 +236,23 @@ impl ShiganConfig {
             serde_json::from_str(&existing_data).expect("Failed to parse JSON data")
         };
         
-        data["subjects"].as_array().unwrap().iter().for_each(|subject| {
-            println!("{} {} minutes", subject["task"], subject["durationInMinutes"]);
-        })
+        match task.as_str() {
+            "all" => {
+                data["subjects"].as_array().unwrap().iter().for_each(|subject| {
+                    println!("{} {} minutes", subject["task"], subject["durationInMinutes"]);
+                })
+            },
+            _ => {
+                let s: Vec<Value> = data["subjects"].as_array().unwrap().iter().cloned().filter(|subject| subject["task"].as_str().unwrap() == *task).collect();
+                // println!("{:#?}", s);
+
+                if s.len() == 0 {
+                    eprintln!("@@ Error - No task found");
+                } else {
+                    println!("{} {} minutes", s[0]["task"], s[0]["durationInMinutes"]);
+                }
+            }
+        }
     }
 }
 
