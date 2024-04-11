@@ -132,7 +132,7 @@ impl ShiganConfig {
             return;
         }
         if current_task.len() > 2 {
-            eprintln!("@@ Error - there is an ongoing task: {}", current_task);
+            eprintln!("-- Error - there is an ongoing task: {}", current_task);
             return;
         }
 
@@ -162,7 +162,7 @@ impl ShiganConfig {
         let current_session_duration = current_session_end - current_session_start;
         let current_task = data["current"]["task"].to_owned();
         if data["current"]["task"].to_string().len() <= 2 {
-            eprintln!("@@ Error - there's no ongoing task.");
+            eprintln!("-- Error - there's no ongoing task.");
             return;
         }
         let subject = data["subjects"]
@@ -202,7 +202,7 @@ impl ShiganConfig {
 
         let current_task = data["current"]["task"].to_owned();
         if current_task.as_str() ==  Some(task) {
-            eprintln!("@@ Error - cannot delete an ongoing task.");
+            eprintln!("-- Error - cannot delete an ongoing task.");
             return;
         }
         let index = data["subjects"]
@@ -238,16 +238,16 @@ impl ShiganConfig {
         
         match task.as_str() {
             "all" => {
-                data["subjects"].as_array().unwrap().iter().for_each(|subject| {
-                    println!("{} {} minutes", subject["task"], subject["durationInMinutes"]);
+                let arr = data["subjects"].as_array().unwrap();
+                arr.iter().for_each(|subject| {
+                    println!("{:⁻<30}{:⁻>5} minutes", subject["task"].to_string(), subject["durationInMinutes"].to_string());
                 })
             },
             _ => {
                 let s: Vec<Value> = data["subjects"].as_array().unwrap().iter().cloned().filter(|subject| subject["task"].as_str().unwrap() == *task).collect();
-                // println!("{:#?}", s);
 
                 if s.len() == 0 {
-                    eprintln!("@@ Error - No task found");
+                    eprintln!("-- Error - No task found");
                 } else {
                     println!("{} {} minutes", s[0]["task"], s[0]["durationInMinutes"]);
                 }
