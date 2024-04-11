@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use serde_json::{json, Value, to_string_pretty};
 use std::fs::OpenOptions;
 use chrono::{Utc, DateTime};
+#[macro_use] extern crate prettytable;
 
 #[derive(Parser)]
 #[command(version, about = "Command line Pomodoro Timer", long_about = None)]
@@ -235,24 +236,42 @@ impl ShiganConfig {
         } else {
             serde_json::from_str(&existing_data).expect("Failed to parse JSON data")
         };
+
         
+        
+        let mut table = table!();
+        table.add_row(row![b->"Tasks", b->"Total Minutes"]);
+
         match task.as_str() {
-            "all" => {
-                let arr = data["subjects"].as_array().unwrap();
-                arr.iter().for_each(|subject| {
-                    println!("{:⁻<30}{:⁻>5} minutes", subject["task"].to_string(), subject["durationInMinutes"].to_string());
-                })
+            "all" => 
+            {
+                let mut subjects: Vec<Value> = data["subjects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .cloned()
+                .collect();
+                subjects.sort_by_key(|subject| subject["durationInMinutes"].as_u64().unwrap_or_default());
+                subjects.reverse();
+                subjects.iter().for_each(|subject| {
+                    let t = subject["task"].as_str().unwrap();
+                    let d = subject["durationInMinutes"].to_string();
+                    table.add_row(row![Fg->t, Fgc->d]);
+                });
             },
             _ => {
-                let s: Vec<Value> = data["subjects"].as_array().unwrap().iter().cloned().filter(|subject| subject["task"].as_str().unwrap() == *task).collect();
-
-                if s.len() == 0 {
+                let subjects: Vec<Value> = data["subjects"].as_array().unwrap().iter().cloned().filter(|subject| subject["task"].as_str().unwrap() == *task).collect();
+                
+                if subjects.len() == 0 {
                     eprintln!("-- Error - No task found");
                 } else {
-                    println!("{} {} minutes", s[0]["task"], s[0]["durationInMinutes"]);
+                    let t = subjects[0]["task"].as_str().unwrap();
+                    let d = subjects[0]["durationInMinutes"].to_string();
+                    table.add_row(row![Fg->t, Fgc->d]);
                 }
             }
         }
+        table.printstd();
     }
 }
 
