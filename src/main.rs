@@ -1,4 +1,5 @@
 use clap::Parser;
+use clap::Subcommand;
 use std::fs::{create_dir_all, File};
 use std::io::prelude::*;
 use serde_json::{json, Value, to_string_pretty};
@@ -6,34 +7,52 @@ use std::fs::OpenOptions;
 use chrono::{Utc, DateTime};
 #[macro_use] extern crate prettytable;
 
-#[derive(Parser)]
-#[command(version, about = "Command line Pomodoro Timer", long_about = None)]
-struct Args {
-    #[arg(short, long, help="add <TASK> to the tracker", value_name = "TASK" )]
-    add: Option<String>,
+/// Command line Time Tracker
+#[derive(Debug, Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
 
-    #[arg(short, long, help="delete <TASK> from the tracker", value_name = "TASK" )]
-    delete: Option<String>,
-
-    #[arg(long, help="start the tracker for <TASK>", value_name = "TASK" )]
-    start: Option<String>,
-
-    #[arg(long, help="stops currently running tracker")]
-    stop: bool,
-
-    #[arg(short, long, help="list accumulated time for <TASK>", value_name = "TASK")]
-    log: Option<String>,
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// add <TASK> to the tracker
+    Add {
+        /// adds a new task to the tracker
+        #[arg(short, long, value_name = "TASK" )]
+        task: Option<String>,
+    },
+    /// delete <TASK> from the tracker
+    Delete {
+        /// deletes a task from the tracker
+        #[arg(short, long, value_name = "TASK" )]
+        task: Option<String>,
+    },
+    /// start the tracker for <TASK>
+    Start {
+        #[arg(short, long, value_name = "TASK" )]
+        task: Option<String>,
+    },
+    /// stops currently running tracker
+    Stop {
+        #[arg(short, long)]
+        task: bool,
+    },
+    /// list accumulated time for <TASK>
+    Log {
+        /// Display the total accumulated time for TASK
+        #[arg(short, long)]
+        task: Option<String>,
+    }
 }
 
 struct ShiganConfig {
-    current_task: Option<String>,
 }
 
 impl ShiganConfig {
     fn new() -> Self {
-        Self {
-            current_task: None,
-        }
+        Self {}
     }
 
     fn init(&mut self){
@@ -109,12 +128,9 @@ impl ShiganConfig {
         let updated_data = to_string_pretty(&data).unwrap();
         file.write_all(updated_data.as_bytes())
             .expect("Failed to write to data file");
-
-        // println!("Task '{}' added to data file: {:?}", task, data_file_path);
-        Self::task_exists(&task);
     }
 
-    fn start_task(&mut self) {
+    fn start_task(&mut self, task: String) {
         let mut file = Self::open_file();
         let mut existing_data = String::new();
         file.read_to_string(&mut existing_data).expect("Failed to read data file");
@@ -124,12 +140,11 @@ impl ShiganConfig {
             serde_json::from_str(&existing_data).expect("Failed to parse JSON data")
         };
 
-        let task = &self.current_task;
         let current_task = &data["current"]["task"];
         let current_task = current_task.to_string();
 
-        if !Self::task_exists(&task.clone().unwrap()) {
-            println!("-- Task '{}' does not exist.", task.clone().unwrap());
+        if !Self::task_exists(&task) {
+            println!("-- Task '{}' does not exist.", task);
             return;
         }
         if current_task.len() > 2 {
@@ -137,7 +152,7 @@ impl ShiganConfig {
             return;
         }
 
-        data["current"]["task"] = json!(task.clone().unwrap());
+        data["current"]["task"] = json!(task);
         data["current"]["session"]["started"] = json!(Utc::now().to_rfc3339());
 
         file.rewind().expect("Failed to rewind data file");
@@ -145,7 +160,7 @@ impl ShiganConfig {
         file.write_all(updated_data.as_bytes())
             .expect("Failed to write to data file");
 
-        println!("Task '{}' starting", task.clone().unwrap());
+        println!("Task '{}' starting", task);
     }
 
     fn end_task(&mut self) {
@@ -166,6 +181,9 @@ impl ShiganConfig {
             eprintln!("-- Error - there's no ongoing task.");
             return;
         }
+    
+        println!("Stopped tracking for the task {}", &data["current"]["task"]);
+
         let subject = data["subjects"]
             .as_array_mut()
             .expect("Failed to read as an array")
@@ -193,6 +211,8 @@ impl ShiganConfig {
         let updated_data = to_string_pretty(&data).unwrap();
         file.write_all(updated_data.as_bytes())
             .expect("Failed to write to data file");
+
+
     }
 
     fn delete_task(&mut self, task: &String) {
@@ -236,8 +256,6 @@ impl ShiganConfig {
         } else {
             serde_json::from_str(&existing_data).expect("Failed to parse JSON data")
         };
-
-        
         
         let mut table = table!();
         table.add_row(row![b->"Tasks", b->"Total Minutes"]);
@@ -276,28 +294,38 @@ impl ShiganConfig {
 }
 
 fn main() {
-    let cli = Args::parse();
+    let cli = Cli::parse();
     let mut shigan= ShiganConfig::new();
     shigan.init();
 
-    if let Some(task) = cli.add {
-        shigan.add_task(&(task.to_lowercase()));
-    }
-
-    if let Some(task) = cli.delete {
-        shigan.delete_task(&(task.to_lowercase()));
-    }
-
-    if let Some(task) = cli.start {
-        shigan.current_task = Some(task.to_lowercase());
-        shigan.start_task();
-    }
-
-    if cli.stop {
-        shigan.end_task();
-    }
-
-    if let Some(task) = cli.log {
-        shigan.log(&task);
+    match &cli.command {
+        Some(Commands::Add { task }) => {
+            match task {
+                Some(t) => shigan.add_task(&(t.to_lowercase())),
+                None => println!("None")
+            }
+        }
+        Some(Commands::Delete { task }) => {
+            match task {
+                Some(t) => shigan.delete_task(&(t.to_lowercase())),
+                None => println!("None")
+            }
+        }
+        Some(Commands::Start { task }) => {
+            match task {
+                Some(t) => shigan.start_task(t.to_lowercase()),
+                None => println!("None")
+            }
+        }
+        Some(Commands::Log { task }) => {
+            match task {
+                Some(t) => shigan.log(&(t.to_lowercase())),
+                None => shigan.log(&"all".to_string().to_lowercase())
+            }
+        }
+        Some(Commands::Stop { task: _ }) => {
+            shigan.end_task();
+        }
+        None => {}
     }
 }
