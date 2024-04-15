@@ -4,8 +4,8 @@
     <div>
     	<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
     </div>
+    <img src="./shigan.png" alt="logo" />
   <br />
-  <img src="./shigan.png" alt="logo" />
 </div>
 
 

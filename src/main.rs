@@ -139,7 +139,7 @@ impl ShiganConfig {
         let current_task = current_task.to_string();
 
         if !self.task_exists(&task) {
-            println!("-- Task '{}' does not exist.", task);
+            println!("@@ Task '{}' does not exist.", task);
             return;
         }
         if current_task.len() > 2 {
@@ -152,7 +152,7 @@ impl ShiganConfig {
 
         self.write_data(&data, &mut file);
 
-        println!("Task '{}' starting", task);
+        println!("@@ Task '{}' starting", task);
     }
 
     fn end_task(&mut self) {
@@ -179,7 +179,7 @@ impl ShiganConfig {
             .expect("Failed to read as an array")
             .iter_mut()
             .find(|s| s["task"].as_str().unwrap_or_default() == current_task)
-            .expect("Task not found in subjects");
+            .expect("@@ Task not found in subjects");
 
         subject["sessions"]
         .as_array_mut()
@@ -221,9 +221,9 @@ impl ShiganConfig {
 
             let _ = file.set_len(0);
             self.write_data(&data, &mut file);
-            println!("Task '{}' deleted", task);
+            println!("@@ Task '{}' deleted", task);
         } else {
-            println!("Task '{}' not found", task);
+            println!("@@ Task '{}' not found", task);
         }
     }
 
