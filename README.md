@@ -16,7 +16,7 @@
 First, install `rustup` to get the `rust` compiler using `curl https://sh.rustup.rs -sSf | sh -s`. Then, 
 
 ```sh
-$ git clone https://github.com/rolemadelen/shigan
+$ git clone https://github.com/img9417/shigan
 $ cd shigan
 $ cargo build --release
 
@@ -26,7 +26,7 @@ $ ./target/release/shigan
 ### Homebrew
 
 ```shell
-$ brew tap rolemadelen/shigan
+$ brew tap img9417/shigan
 $ brew install shigan
 ```
 
